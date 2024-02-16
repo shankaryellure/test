@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>whiteboard</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            height: 100vh;
+        }
+
+        #whiteboard-container {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #whiteboard {
+            border: 2px solid #000;
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        #tools {
+            flex-basis: 250px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            background: #f0f0f0;
+        }
+
+        #tools label {
+            font-weight: bold;
+        }
+    </style></head>
+<body>
+<div id="whiteboard-container">
+    <canvas id="whiteboard" width="1200" height="800"></canvas>
+</div>
+<div id="tools">
+    <label for="colorPicker">Color:</label>
+    <input type="color" id="colorPicker" value="#000000">
+    <label for="toolSelector">Tool:</label>
+    <select id="toolSelector">
+        <option value="pencil">Pencil</option>
+        <option value="eraser">Eraser</option>
+    </select>
+    <button id="clearButton">Clear</button>
+    <button id="endSession">end session</button>
+    <p>Your Passcode: <span id="passcodeDisplay"></span></p>
+</div>
+<script src="/socket.io/socket.io.js"></script>
+<script src="/whiteboard.js"></script>
+</body>
+</html>

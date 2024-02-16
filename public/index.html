@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to Whiteboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f0f0f0; text-align: center; padding-top: 100px; }
+        .auth-container { background-color: #fff; padding: 40px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); display: inline-block; }
+        h1 { color: #5b9bd5; margin-bottom: 30px; }
+        button { padding: 10px 20px; border: none; border-radius: 4px; color: white; font-size: 16px; cursor: pointer; margin-right: 15px; }
+        .log-in-btn { background-color: #5b9bd5; }
+        .join-session-btn { background-color: #ed7d31; }
+    </style>
+</head>
+<body>
+<div class="auth-container">
+    <h1>Welcome to Whiteboard</h1>
+    <button class="log-in-btn" onclick="location.href='/signin'">Log in</button>
+    <button class="join-session-btn" onclick="location.href='/passcode'">Join Session</button>
+</div>
+<script src="/socket.io/socket.io.js"></script>
+<script src="/whiteboard.js"></script>
+</body>
+</html>
