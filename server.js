@@ -123,41 +123,22 @@ app.get('/passcode', (req, res) => {
 app.post('/login', (req, res) => {
   const { email, password } = req.body;
 
-  // Query to find the user by email
   const findUserQuery = 'SELECT * FROM new_users WHERE email_id = ?';
   db.query(findUserQuery, [email], (err, results) => {
     if (err) {
-      // Handle database error
       res.status(500).send('An error occurred during login.');
     } else if (results.length === 0) {
-      // No user found with that email
       res.status(401).send('No user found with that email.');
     } else {
-      // User found, now compare the password
       const user = results[0];
       bcrypt.compare(password, user.password, (compareErr, isMatch) => {
         if (compareErr) {
-          // Handle hashing error
           res.status(500).send('An error occurred during login.');
         } else if (!isMatch) {
-          // Passwords do not match
           res.status(401).send('Invalid password.');
         } else {
-          // Passwords match, proceed with session creation
-          const sessionId = generateSessionId();
-          const passcode = generatePasscode();
-
-          // Store the session information in the database
-          storePasscodeInDatabase(sessionId, passcode, (dbErr) => {
-            if (dbErr) {
-              // Handle error after attempting to store the session
-              console.error("Error in storePasscodeInDatabase callback:", dbErr);
-              res.status(500).send('Failed to initiate session.');
-            } else {
-              // After storing the session, redirect the user to the whiteboard page
-              res.redirect(`/login?sessionId=${sessionId}&passcode=${passcode}`);
-            }
-          });
+          // Redirect to a page after successful login without generating session details
+          res.redirect('/login.html'); // Adjust the redirection URL as needed
         }
       });
     }
