@@ -53,12 +53,12 @@ app.get('/signin', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'signin.html'));
   });
 
-//serve signing page
+//serve passcode page
 app.get('/passcode', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'passcode.html'));
   });
 
-  // Serve index page
+  // Serve login page
   app.get('/login', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
   });
@@ -137,8 +137,7 @@ app.post('/login', (req, res) => {
         } else if (!isMatch) {
           res.status(401).send('Invalid password.');
         } else {
-          // Redirect to a page after successful login without generating session details
-          res.redirect('/login.html'); // Adjust the redirection URL as needed
+          res.redirect('/login.html'); 
         }
       });
     }
@@ -175,15 +174,13 @@ function isNewSession(sessionId, callback) {
 }
 
 
-
-
 io.on('connection', (socket)=> {
    const sessionId = socket.id;
 
   // Listen for 'createSession' event from the client
   socket.on('createSession', () => {
-    const sessionId = generateSessionId(); // Assuming this generates a unique ID for the session
-    const passcode = generatePasscode(); // Generates a unique passcode for the session
+    const sessionId = generateSessionId(); 
+    const passcode = generatePasscode(); 
 
     // Check if the session already exists in the database
     isNewSession(sessionId, (err, isNew) => {
