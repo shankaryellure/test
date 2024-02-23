@@ -51,7 +51,7 @@ const sessionDrawingData = {};
   });
 
 // serve signup page
-  app.get('/signup', checkSession, (req, res) => {
+  app.get('/signup', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'signup.html'));
   });
 
@@ -62,17 +62,17 @@ const sessionDrawingData = {};
   });
 
 //serve signing page
-  app.get('/passcode', checkSession, (req, res) => {
+  app.get('/passcode',(req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'passcode.html'));
   });
 
   // Serve index page
-  app.get('/login', checkSession, (req, res) => {
+  app.get('/login', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
   });
 
   //serve whiteboard page
-  app.get('/whiteboard', checkSession, (req, res) => {
+  app.get('/whiteboard', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'whiteboard.html'));
   });
 
