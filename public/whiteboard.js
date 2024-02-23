@@ -41,19 +41,22 @@ socket.on('passcodeValidationResult', (result) => {
 
 
 
-socket.on('sessionFull', (message) => {
-  alert(message); // Or update the UI to show that the session is full
-});
 
 
-//Listen for endSession button
-document.addEventListener('DOMContentLoaded', (event) => {
-    const endSessionButton = document.getElementById('endsession'); // Replace with your actual button ID  
-    endSessionButton.addEventListener('click', function() {
-      if (socket && sessionId) {
-        socket.emit('endSession', { sessionId: sessionId });
-      } else {
-        console.error('Socket not connected or session ID undefined');
-      }
-    });
-  });
+
+// socket.on('sessionFull', (message) => {
+//   alert(message); // Or update the UI to show that the session is full
+// });
+
+
+// //Listen for endSession button
+// document.addEventListener('DOMContentLoaded', (event) => {
+//     const endSessionButton = document.getElementById('endsession'); // Replace with your actual button ID  
+//     endSessionButton.addEventListener('click', function() {
+//       if (socket && sessionId) {
+//         socket.emit('endSession', { sessionId: sessionId });
+//       } else {
+//         console.error('Socket not connected or session ID undefined');
+//       }
+//     });
+//   });

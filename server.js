@@ -11,7 +11,9 @@ const app = express();
 const server = require('http').createServer();
 const combinedData = [];
 const sessionCounts = {};
-
+const cookieParser = require('cookie-parser');
+app.use(cookieParser());
+const session = require('express-session');
 
 
 app.use(express.json()); // for parsing application/json
@@ -29,43 +31,49 @@ const credentials = { key: privateKey, cert: certificate };
 const httpsServer = https.createServer(credentials, app);
 const io = socketIo(httpsServer);
 
+app.use(session({
+  secret: 'mySecretKey',
+  resave: true,
+  saveUninitialized: true,
+  cookie: {
+    httpOnly: true,
+    secure: true, // set to true if using https
+  }
+}));
 
-// // Hardcoded credentials (for initial testing only)
-// const hardcodedEmail = 'abc@gmail.com';
-// const hardcodedPassword = '123';
 
 // Define a data structure to store drawing data for each session
 const sessionDrawingData = {};
 
 // Serve index page
-app.get('/index', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
+  app.get('/index', checkSession, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  });
 
 // serve signup page
-app.get('/signup', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'signup.html'));
-});
+  app.get('/signup', checkSession, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'signup.html'));
+  });
 
 
 //serve signing page
-app.get('/signin', (req, res) => {
+  app.get('/signin', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'signin.html'));
   });
 
-//serve passcode page
-app.get('/passcode', (req, res) => {
+//serve signing page
+  app.get('/passcode', checkSession, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'passcode.html'));
   });
 
-  // Serve login page
-  app.get('/login', (req, res) => {
+  // Serve index page
+  app.get('/login', checkSession, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
   });
 
   //serve whiteboard page
-  app.get('/whiteboard', (req, res) => {
-      res.sendFile(path.join(__dirname, 'public', 'whiteboard.html'));
+  app.get('/whiteboard', checkSession, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'whiteboard.html'));
   });
 
 
@@ -110,7 +118,7 @@ app.get('/passcode', (req, res) => {
             }
             
             // User registered successfully, redirect to the login page
-            res.redirect('/login');
+            res.redirect('/signin');
           });
         });
       }
@@ -126,24 +134,62 @@ app.post('/login', (req, res) => {
   const findUserQuery = 'SELECT * FROM new_users WHERE email_id = ?';
   db.query(findUserQuery, [email], (err, results) => {
     if (err) {
-      res.status(500).send('An error occurred during login.');
-    } else if (results.length === 0) {
-      res.status(401).send('No user found with that email.');
-    } else {
-      const user = results[0];
-      bcrypt.compare(password, user.password, (compareErr, isMatch) => {
-        if (compareErr) {
-          res.status(500).send('An error occurred during login.');
-        } else if (!isMatch) {
-          res.status(401).send('Invalid password.');
-        } else {
-          res.redirect('/login.html'); 
-        }
-      });
+      return res.status(500).send('An error occurred during login.');
     }
+    if (results.length === 0) {
+      return res.status(401).send('No user found with that email.');
+    }
+    const user = results[0];
+    bcrypt.compare(password, user.password, (compareErr, isMatch) => {
+      if (compareErr) {
+        return res.status(500).send('An error occurred during login.');
+      }
+      if (!isMatch) {
+        return res.status(401).send('Invalid password.');
+      }
+      // On successful authentication:
+      const sessionToken = generateSessionId();
+      const userId = user.id; // Replace with the correct user ID field from your results if different
+      const insertSessionQuery = 'INSERT INTO active_sessions (session_id, host_id, start_time, end_time) VALUES (?, ?, NOW(), DATE_ADD(NOW(), INTERVAL 1 DAY))';
+
+      // Store the session information in your database
+      db.query(insertSessionQuery, [sessionToken, userId], (err, result) => {
+        if (err) {
+          return res.status(500).send('An error occurred during session creation.');
+        }
+        // Set the session ID in a cookie
+        res.cookie('userSessionId', sessionToken, { httpOnly: true, secure: true, maxAge: 24 * 60 * 60 * 1000 });
+        // Redirect to the protected route
+        res.redirect('/login'); 
+      });
+    });
   });
 });
-  
+
+
+function checkSession(req, res, next) {
+  const sessionId = req.cookies.userSessionId;
+  if (!sessionId) {
+    console.log("No session ID found in cookie.");
+    return res.redirect('/signin');
+  }
+
+  const findSessionQuery = 'SELECT host_id FROM active_sessions WHERE session_id = ? AND end_time > NOW()';
+  db.query(findSessionQuery, [sessionId], (err, results) => {
+    if (err) {
+      console.error(err);
+      return res.status(500).send('Error checking session.');
+    }
+    if (results.length === 0) {
+      console.log("Session ID not recognized or expired.");
+      return res.redirect('/signin');
+    }
+    console.log("User is authenticated with session ID:", sessionId);
+    // Add more user details to req.session as needed
+    req.session.user = { id: results[0].host_id };
+    return res.redirect('/login');
+  });
+}
 
 const generatePasscode = () => {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -236,6 +282,8 @@ io.on('connection', (socket)=> {
        }
      });
    });
+
+
 //   // Handle user disconnection
         socket.on('endSession', () => {
           console.log('A user disconnected');
@@ -267,7 +315,7 @@ io.on('connection', (socket)=> {
 
 
   const PORT = process.env.PORT || 3000; // Use port 443 for HTTPS
-  const IP_ADDRESS = '10.111.118.73'; // Replace with your desired IP address
+  const IP_ADDRESS = '10.0.0.20'; // Replace with your desired IP address
 
   httpsServer.listen(PORT, IP_ADDRESS, () => {
     console.log(`Secure server is running on ${IP_ADDRESS}:${PORT}`);
