@@ -39,43 +39,32 @@ socket.on('passcodeValidationResult', (result) => {
     }
 });
 
-document.getElementById('signOutBtn').addEventListener('click', function() {
-    fetch('/signout', {
-      method: 'POST',
-      credentials: 'include', // This is important for including cookies
-    })
-    .then(response => {
-      if (response.ok) {
-        // Handle successful sign-out here
-        window.location.href = '/signin'; // Redirect to login page or home page
-      } else {
-        // Handle errors here
-        alert('Sign out failed.');
-      }
-    })
-    .catch(error => {
-      console.error('Error:', error);
-    });
+document.addEventListener('DOMContentLoaded', (event) => {
+    const signOutBtn = document.getElementById('signOutBtn');
+    if (signOutBtn) {
+      signOutBtn.addEventListener('click', function() {
+        fetch('/signout', {
+          method: 'POST',
+          credentials: 'include',
+        })
+        .then(response => {
+          if (response.ok) {
+            window.location.href = '/signin';
+          } else {
+            alert('Sign out failed.');
+          }
+        })
+        .catch(error => {
+          console.error('Error:', error);
+        });
+      });
+    }
+  
+    const endSessionBtn = document.getElementById('endSession');
+    if (endSessionBtn) {
+      endSessionBtn.addEventListener('click', () => {
+        socket.emit('endSession');
+        window.location.href = '/login'; // Redirect to login page
+      });
+    }
   });
-
-
-
-
-
-
-// socket.on('sessionFull', (message) => {
-//   alert(message); // Or update the UI to show that the session is full
-// });
-
-
-// //Listen for endSession button
-// document.addEventListener('DOMContentLoaded', (event) => {
-//     const endSessionButton = document.getElementById('endsession'); // Replace with your actual button ID  
-//     endSessionButton.addEventListener('click', function() {
-//       if (socket && sessionId) {
-//         socket.emit('endSession', { sessionId: sessionId });
-//       } else {
-//         console.error('Socket not connected or session ID undefined');
-//       }
-//     });
-//   });

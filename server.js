@@ -220,14 +220,11 @@ function isNewSession(sessionId, callback) {
 }
 
 app.post('/signout', (req, res) => {
-  // Assume that 'userSessionId' is the name of the cookie where the session ID is stored
   const sessionId = req.cookies['userSessionId'];
 
-  // Delete the session from your active_sessions table
   const deleteSessionQuery = 'DELETE FROM active_sessions WHERE session_id = ?';
   db.query(deleteSessionQuery, [sessionId], (err, result) => {
     if (err) {
-      // handle error case...
       res.status(500).send('Error signing out. Please try again.');
     } else {
       // Clear the session cookie
@@ -292,6 +289,7 @@ io.on('connection', (socket)=> {
            sessionCounts[matchedSessionId]++;
            // Set the sessionId for the socket and allow the user to join the session
            socket.sessionId = matchedSessionId;
+           console.log("socket.sessionID",socket.sessionId);
            socket.emit('passcodeValidationResult', { success: true, sessionId: matchedSessionId });
            socket.join(matchedSessionId); // This is assuming you're using Socket.IO rooms
          }
@@ -302,30 +300,41 @@ io.on('connection', (socket)=> {
    });
 
 
-   // Handle user disconnection
-        socket.on('endSession', () => {
-          console.log('A user disconnected');
-          // Check if the session is complete (last connected user)
-          const connectedUsers = Object.keys(io.sockets.sockets);
-          if (connectedUsers.length === 0) {
-               if (socket.sessionId && sessionCounts[socket.sessionId]) {
-                     sessionCounts[socket.sessionId]--;
-                   }
-
-                //Save the combined drawing data as an HTML file for the session
-                saveCombinedSessionDrawingAsHTML(sessionDrawingData);
-                const deleteQuery = 'DELETE FROM session_passcodes WHERE session_id = ?';
-                      db.query(deleteQuery, [socket.sessionId], (err, result) => {
-                          if (err) {
-                              console.error('Error deleting records:', err);
-                          } else {
-                              console.log(`Records deleted for session ID ${socket.sessionId}`);
-                              // You can now do additional cleanup if needed
-                          }
-                      });
-        }
-   });
+   socket.on('endSession', () => {
+    console.log('A user requested to end the session');
+    console.log("socket.sessionID",socket.sessionId);
+    // Decrease the user count for this session
+    if (socket.sessionId && sessionCounts[socket.sessionId]) {
+      console.log("socket.sessionID",socket.sessionId);
+      sessionCounts[socket.sessionId]--;
+      console.log("socket.sessionID",socket.sessionId);
+    }
+  
+    // If there are no more users in the session, clean it up
+    if (socket.sessionId && sessionCounts[socket.sessionId] === 0) {
+      console.log("socket.sessionID",socket.sessionId);
+      // Save the combined drawing data as an HTML file for the session
+      saveCombinedSessionDrawingAsHTML(sessionDrawingData);
+  
+      // Delete the session from the database
+      const deleteQuery = 'DELETE FROM session_passcodes WHERE session_id = ?';
+      db.query(deleteQuery, [socket.sessionId], (err, result) => {
+        console.log("socket.sessionID",socket.sessionId);
+          if (err) {
+              console.error('Error deleting session:', err);
+          } else {
+              console.log(`Session ended and deleted for session ID ${socket.sessionId}`);
+              // Additional cleanup if needed
+          }
+      });
+  
+      // Remove the session from the sessionCounts object
+      delete sessionCounts[socket.sessionId];
+      console.log("socket.sessionID",socket.sessionId);
+    }
+  });
 });
+
 
 
 
