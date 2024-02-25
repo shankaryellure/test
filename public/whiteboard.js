@@ -39,6 +39,25 @@ socket.on('passcodeValidationResult', (result) => {
     }
 });
 
+document.getElementById('signOutBtn').addEventListener('click', function() {
+    fetch('/signout', {
+      method: 'POST',
+      credentials: 'include', // This is important for including cookies
+    })
+    .then(response => {
+      if (response.ok) {
+        // Handle successful sign-out here
+        window.location.href = '/signin'; // Redirect to login page or home page
+      } else {
+        // Handle errors here
+        alert('Sign out failed.');
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+    });
+  });
+
 
 
 

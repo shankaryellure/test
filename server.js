@@ -219,10 +219,28 @@ function isNewSession(sessionId, callback) {
   });
 }
 
+app.post('/signout', (req, res) => {
+  // Assume that 'userSessionId' is the name of the cookie where the session ID is stored
+  const sessionId = req.cookies['userSessionId'];
+
+  // Delete the session from your active_sessions table
+  const deleteSessionQuery = 'DELETE FROM active_sessions WHERE session_id = ?';
+  db.query(deleteSessionQuery, [sessionId], (err, result) => {
+    if (err) {
+      // handle error case...
+      res.status(500).send('Error signing out. Please try again.');
+    } else {
+      // Clear the session cookie
+      res.clearCookie('userSessionId');
+      // End the session and send a response to the client
+      res.status(200).send('Signed out successfully.');
+    }
+  });
+});
+
 
 io.on('connection', (socket)=> {
-   const sessionId = socket.id;
-
+  
   // Listen for 'createSession' event from the client
   socket.on('createSession', () => {
     const sessionId = generateSessionId(); 
@@ -284,7 +302,7 @@ io.on('connection', (socket)=> {
    });
 
 
-//   // Handle user disconnection
+   // Handle user disconnection
         socket.on('endSession', () => {
           console.log('A user disconnected');
           // Check if the session is complete (last connected user)
@@ -308,9 +326,6 @@ io.on('connection', (socket)=> {
         }
    });
 });
-
-
-
 
 
 
