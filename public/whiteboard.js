@@ -7,7 +7,20 @@ const socket = io();
     });
   }
 
-// Correct event listener for the 'sessionPasscode' event in 'whiteboard.js'
+  socket.on('sessionCreated', (data) => {
+    localStorage.setItem('sessionID', data.sessionId);
+    document.cookie = `sessionID=${data.sessionId};path=/;max-age=3600;secure`;
+  });
+
+
+  const endSessionBtn = document.getElementById('endSession');
+  if (endSessionBtn) {
+    endSessionBtn.addEventListener('click', () => {
+        socket.emit('endSession', { sessionId: localStorage.getItem('sessionID') });
+      window.location.href = '/login'; 
+    });
+  }
+
 socket.on('sessionPasscode', (passcode) => {
     const passcodeDisplayElement = document.getElementById('passcodeDisplay').textContent = passcode;
 
@@ -18,7 +31,6 @@ socket.on('sessionPasscode', (passcode) => {
     }
 });
 
-//Handling the joinBtn
 const joinSessionButton = document.getElementById('joinBtn');
 const fullNameInput = document.getElementById('fullName');
 const passcodeInput = document.getElementById('passcodeInput');
@@ -57,14 +69,6 @@ document.addEventListener('DOMContentLoaded', (event) => {
         .catch(error => {
           console.error('Error:', error);
         });
-      });
-    }
-  
-    const endSessionBtn = document.getElementById('endSession');
-    if (endSessionBtn) {
-      endSessionBtn.addEventListener('click', () => {
-        socket.emit('endSession');
-        window.location.href = '/login'; // Redirect to login page
       });
     }
   });
