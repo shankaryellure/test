@@ -295,38 +295,47 @@ io.on('connection', (socket)=> {
 
 
    socket.on('endSession', (data) => {
-    console.log('A user requested to end the session');
-    const { sessionId } = data;
-    console.log("sessionId in the endSession",sessionId);
-    if (!sessionId) {
-      console.log('No session ID associated with this socket.');
+  const sessionId = data.sessionId;
+  const cookieString = socket.handshake.headers.cookie;
+  const cookies = cookie.parse(cookieString || '');
+  const userSessionId = cookies['userSessionId']; // Retrieve sessionToken from cookies
+
+  // First, validate the session exists in session_passcodes and fetch the host_id
+  const validateSessionQuery = 'SELECT host_id FROM session_passcodes WHERE session_id = ?';
+  db.query(validateSessionQuery, [sessionId], (validateErr, sessionResults) => {
+    if (validateErr || sessionResults.length === 0) {
+      console.error('Session validation failed or session does not exist.');
       return;
     }
 
-    const findHostAndEmailQuery = 'SELECT host_id, email FROM session_passcodes WHERE session_id = ?';
-    db.query(findHostAndEmailQuery, [sessionId], (err, results) => {
-      if (err) {
-        console.error('Error fetching host_id and email:', err);
-        return;
-      }
-      if (results.length === 0) {
-        console.log('No matching session found to end.');
+    // Fetch the host_id associated with the userSessionId from active_sessions
+    const getUserHostIdQuery = 'SELECT host_id FROM active_sessions WHERE session_id = ?';
+    db.query(getUserHostIdQuery, [userSessionId], (hostErr, userResults) => {
+      if (hostErr || userResults.length === 0) {
+        console.error('Error fetching user session or no session found.');
         return;
       }
 
-      const hostId = results[0].host_id;
-      const email = results[0].email;
+      // Compare host_id from both tables to ensure the user ending the session is the host
+      if (sessionResults[0].host_id !== userResults[0].host_id) {
+        console.log('User is not the host of the session.');
+        return;
+      }
 
-      const deleteSessionQuery = 'DELETE FROM session_passcodes WHERE host_id = ? AND email = ?';
-      db.query(deleteSessionQuery, [hostId, email], (deleteErr, deleteResult) => {
+      // Proceed to delete the session from session_passcodes
+      const deleteSessionQuery = 'DELETE FROM session_passcodes WHERE session_id = ?';
+      db.query(deleteSessionQuery, [sessionId], (deleteErr, deleteResult) => {
         if (deleteErr) {
           console.error('Error deleting session:', deleteErr);
           return;
         }
-        console.log(`Session ended and deleted for host_id ${hostId} and email ${email}`);
+        console.log(`Session ended and deleted for session ID: ${sessionId}`);
+        socket.emit('sessionEnded');
+        console.log("after sessionEnded");
       });
     });
   });
+});
 });
 
 
@@ -334,7 +343,7 @@ io.on('connection', (socket)=> {
 
 
   const PORT = process.env.PORT || 3000; 
-  const IP_ADDRESS = '10.111.118.73'; 
+  const IP_ADDRESS = '10.0.0.20'; 
 
   httpsServer.listen(PORT, IP_ADDRESS, () => {
     console.log(`Secure server is running on ${IP_ADDRESS}:${PORT}`);
