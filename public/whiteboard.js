@@ -55,6 +55,8 @@ if (joinSessionButton) {
     joinSessionButton.addEventListener('click', () => {
         const fullName = fullNameInput.value;
         const passcode = passcodeInput.value;
+        console.log("fullname",fullName);
+        console.log("passcode",passcode);
         socket.emit('validatePasscode', { fullName, passcode });
     });
 }

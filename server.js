@@ -265,33 +265,78 @@ io.on('connection', (socket)=> {
     });
   });
   
-   // Handle passcode validation request for joining a session
-   socket.on('validatePasscode', ({ fullname, passcode }) => { 
-       const validationQuery = 'SELECT session_id FROM session_passcodes WHERE passcode = ?';
-       db.query(validationQuery, [passcode], (err, results) => {
-           if (err) {
-               console.error('Error validating passcode:', err);
-               socket.emit('passcodeValidationResult', { success: false, error: 'Database error' });
-           } else if (results.length > 0) {
-               const matchedSessionId = results[0].session_id;
-                console.log("session matched", matchedSessionId);
-         if (!sessionCounts[matchedSessionId]) {
-           sessionCounts[matchedSessionId] = 0;
-         }
-         if (sessionCounts[matchedSessionId] >= 2) {
-           socket.emit('sessionFull', 'Session is full');
-         } else {
-           sessionCounts[matchedSessionId]++;
-           socket.sessionId = matchedSessionId;
-           console.log("socket.sessionID",socket.sessionId);
-           socket.emit('passcodeValidationResult', { success: true, sessionId: matchedSessionId });
-           socket.join(matchedSessionId); 
-         }
-       } else {
-         socket.emit('passcodeValidationResult', { success: false, error: 'Invalid passcode' });
-       }
-     });
-   });
+  //  // Handle passcode validation request for joining a session
+  //  socket.on('validatePasscode', ({ fullname, passcode }) => { 
+  //      const validationQuery = 'SELECT session_id FROM session_passcodes WHERE passcode = ?';
+  //      db.query(validationQuery, [passcode], (err, results) => {
+  //          if (err) {
+  //              console.error('Error validating passcode:', err);
+  //              socket.emit('passcodeValidationResult', { success: false, error: 'Database error' });
+  //          } else if (results.length > 0) {
+  //              const matchedSessionId = results[0].session_id;
+  //               console.log("session matched", matchedSessionId);
+  //        if (!sessionCounts[matchedSessionId]) {
+  //          sessionCounts[matchedSessionId] = 0;
+  //        }
+  //        if (sessionCounts[matchedSessionId] >= 2) {
+  //          socket.emit('sessionFull', 'Session is full');
+  //        } else {
+  //          sessionCounts[matchedSessionId]++;
+  //          socket.sessionId = matchedSessionId;
+  //          console.log("socket.sessionID",socket.sessionId);
+  //          socket.emit('passcodeValidationResult', { success: true, sessionId: matchedSessionId });
+  //          socket.join(matchedSessionId); 
+  //        }
+  //      } else {
+  //        socket.emit('passcodeValidationResult', { success: false, error: 'Invalid passcode' });
+  //      }
+  //    });
+  //  });
+
+
+  socket.on('validatePasscode', ({ fullName, passcode }) => {
+    console.log(`Received validatePasscode event with fullName: ${fullName}, passcode: ${passcode}`);
+    const validationQuery = 'SELECT session_id FROM session_passcodes WHERE passcode = ?';
+    db.query(validationQuery, [passcode], (err, results) => {
+      if (err) {
+        console.error('Error validating passcode:', err);
+        socket.emit('passcodeValidationResult', { success: false, error: 'Database error' });
+      } else if (results.length > 0) {
+        const matchedSessionId = results[0].session_id;
+        console.log("session matched", matchedSessionId);
+  
+        if (!sessionCounts[matchedSessionId]) {
+          sessionCounts[matchedSessionId] = 0;
+        }
+        console.log(`Current session count for ${matchedSessionId}: ${sessionCounts[matchedSessionId]}`);
+        if (sessionCounts[matchedSessionId] >= 2) { // Adjust limit as necessary
+          console.log(`Session ${matchedSessionId} is full`);
+          socket.emit('sessionFull', 'Session is full');
+        } else {
+          sessionCounts[matchedSessionId]++;
+          console.log(`Incremented session count for ${matchedSessionId}: ${sessionCounts[matchedSessionId]}`);
+          socket.sessionId = matchedSessionId;
+  
+          // Inserting the guest into the guest_sessions table
+          console.log(`Attempting to insert guest: ${fullName}, passcode: ${passcode}, session: ${matchedSessionId}`);
+          db.query('INSERT INTO guest_sessions (guest_name, passcode, session_id) VALUES (?, ?, ?)', 
+                   [fullName, passcode, matchedSessionId], (insertErr, insertResults) => {
+            if (insertErr) {
+              console.error('Error inserting guest into guest_sessions:', insertErr);
+            } else {
+              console.log(`Guest ${fullName} added to guest_sessions for session ${matchedSessionId}`);
+              socket.emit('passcodeValidationResult', { success: true, sessionId: matchedSessionId });
+              socket.join(matchedSessionId);
+            }
+          });
+        }
+      } else {
+        console.log('Passcode validation failed');
+        socket.emit('passcodeValidationResult', { success: false, error: 'Invalid passcode' });
+      }
+    });
+  });
+  
 
 
    socket.on('endSession', (data) => {
