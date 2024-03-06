@@ -14,26 +14,33 @@ const socket = io();
 
 
   const endSessionBtn = document.getElementById('endSession');
-  if (endSessionBtn) {
-    endSessionBtn.addEventListener('click', () => {
-      const sessionId = localStorage.getItem('sessionID');
-      console.log("Hello", sessionId);
-      if (sessionId) {
-        socket.emit('endSession', { sessionId });
-        console.log("client is after emit");
-        window.location.href = '/login';
-      } else {
-        // User is a participant; redirect to the index page
-        window.location.href = '/index';
-      }
-    });
-  }
 
+  if (endSessionBtn) {
+    const sessionId = localStorage.getItem('sessionID');
+  
+    if (sessionId) {
+      // User is the host
+      endSessionBtn.addEventListener('click', () => {
+        console.log("Host ending session", sessionId);
+        socket.emit('endSession', { sessionId });
+        console.log("Host: client is after emit");
+      });
+    } else {
+      // User is a participant
+      endSessionBtn.textContent = 'Leave Session'; // Change button text to indicate action
+      endSessionBtn.addEventListener('click', () => {
+        console.log("Participant leaving session");
+        window.location.href = '/index'; // Redirect participant
+      });
+    }
+  }
+  
   socket.on('sessionEnded', () => {
     console.log("Hello In sessionEnded");
     localStorage.removeItem('sessionID');
     window.location.href = '/login'; 
   });
+  
   
   
 

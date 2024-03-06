@@ -339,48 +339,59 @@ io.on('connection', (socket)=> {
   
 
 
-   socket.on('endSession', (data) => {
-  const sessionId = data.sessionId;
-  const cookieString = socket.handshake.headers.cookie;
-  const cookies = cookie.parse(cookieString || '');
-  const userSessionId = cookies['userSessionId']; // Retrieve sessionToken from cookies
-
-  // First, validate the session exists in session_passcodes and fetch the host_id
-  const validateSessionQuery = 'SELECT host_id FROM session_passcodes WHERE session_id = ?';
-  db.query(validateSessionQuery, [sessionId], (validateErr, sessionResults) => {
-    if (validateErr || sessionResults.length === 0) {
-      console.error('Session validation failed or session does not exist.');
-      return;
-    }
-
-    // Fetch the host_id associated with the userSessionId from active_sessions
-    const getUserHostIdQuery = 'SELECT host_id FROM active_sessions WHERE session_id = ?';
-    db.query(getUserHostIdQuery, [userSessionId], (hostErr, userResults) => {
-      if (hostErr || userResults.length === 0) {
-        console.error('Error fetching user session or no session found.');
+  socket.on('endSession', (data) => {
+    const sessionId = data.sessionId;
+    const cookieString = socket.handshake.headers.cookie;
+    const cookies = cookie.parse(cookieString || '');
+    const userSessionId = cookies['userSessionId']; // Retrieve sessionToken from cookies
+  
+    // First, validate the session exists in session_passcodes and fetch the host_id
+    const validateSessionQuery = 'SELECT host_id FROM session_passcodes WHERE session_id = ?';
+    db.query(validateSessionQuery, [sessionId], (validateErr, sessionResults) => {
+      if (validateErr || sessionResults.length === 0) {
+        console.error('Session validation failed or session does not exist.');
         return;
       }
-
-      // Compare host_id from both tables to ensure the user ending the session is the host
-      if (sessionResults[0].host_id !== userResults[0].host_id) {
-        console.log('User is not the host of the session.');
-        return;
-      }
-
-      // Proceed to delete the session from session_passcodes
-      const deleteSessionQuery = 'DELETE FROM session_passcodes WHERE session_id = ?';
-      db.query(deleteSessionQuery, [sessionId], (deleteErr, deleteResult) => {
-        if (deleteErr) {
-          console.error('Error deleting session:', deleteErr);
+  
+      // Fetch the host_id associated with the userSessionId from active_sessions
+      const getUserHostIdQuery = 'SELECT host_id FROM active_sessions WHERE session_id = ?';
+      db.query(getUserHostIdQuery, [userSessionId], (hostErr, userResults) => {
+        if (hostErr || userResults.length === 0) {
+          console.error('Error fetching user session or no session found.');
           return;
         }
-        console.log(`Session ended and deleted for session ID: ${sessionId}`);
-        socket.emit('sessionEnded');
-        console.log("after sessionEnded");
+  
+        // Compare host_id from both tables to ensure the user ending the session is the host
+        if (sessionResults[0].host_id !== userResults[0].host_id) {
+          console.log('User is not the host of the session.');
+          return;
+        }
+  
+        // Delete guest_sessions entries associated with the session
+        const deleteGuestSessionsQuery = 'DELETE FROM guest_sessions WHERE session_id = ?';
+        db.query(deleteGuestSessionsQuery, [sessionId], (deleteGuestErr, deleteGuestResult) => {
+          if (deleteGuestErr) {
+            console.error('Error deleting guest session entries:', deleteGuestErr);
+            return;
+          }
+          console.log(`Guest session entries deleted for session ID: ${sessionId}`);
+  
+          // Proceed to delete the session from session_passcodes
+          const deleteSessionQuery = 'DELETE FROM session_passcodes WHERE session_id = ?';
+          db.query(deleteSessionQuery, [sessionId], (deleteErr, deleteResult) => {
+            if (deleteErr) {
+              console.error('Error deleting session:', deleteErr);
+              return;
+            }
+            console.log(`Session ended and deleted for session ID: ${sessionId}`);
+            socket.emit('sessionEnded');
+            console.log("after sessionEnded");
+          });
+        });
       });
     });
   });
-});
+  
 });
 
 
@@ -388,7 +399,7 @@ io.on('connection', (socket)=> {
 
 
   const PORT = process.env.PORT || 3000; 
-  const IP_ADDRESS = '10.0.0.20'; 
+  const IP_ADDRESS = '10.111.118.73'; 
 
   httpsServer.listen(PORT, IP_ADDRESS, () => {
     console.log(`Secure server is running on ${IP_ADDRESS}:${PORT}`);
