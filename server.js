@@ -297,6 +297,7 @@ io.on('connection', (socket)=> {
   socket.on('validatePasscode', ({ fullName, passcode }) => {
     console.log(`Received validatePasscode event with fullName: ${fullName}, passcode: ${passcode}`);
     const validationQuery = 'SELECT session_id FROM session_passcodes WHERE passcode = ?';
+  
     db.query(validationQuery, [passcode], (err, results) => {
       if (err) {
         console.error('Error validating passcode:', err);
@@ -305,37 +306,52 @@ io.on('connection', (socket)=> {
         const matchedSessionId = results[0].session_id;
         console.log("session matched", matchedSessionId);
   
-        if (!sessionCounts[matchedSessionId]) {
-          sessionCounts[matchedSessionId] = 0;
-        }
-        console.log(`Current session count for ${matchedSessionId}: ${sessionCounts[matchedSessionId]}`);
-        if (sessionCounts[matchedSessionId] >= 2) { // Adjust limit as necessary
-          console.log(`Session ${matchedSessionId} is full`);
-          socket.emit('sessionFull', 'Session is full');
-        } else {
-          sessionCounts[matchedSessionId]++;
-          console.log(`Incremented session count for ${matchedSessionId}: ${sessionCounts[matchedSessionId]}`);
-          socket.sessionId = matchedSessionId;
+        // Check the guest count for the session
+        const guestCountQuery = 'SELECT guest_count FROM session_info WHERE session_id = ?';
+        db.query(guestCountQuery, [matchedSessionId], (countErr, countResults) => {
+          if (countErr) {
+            console.error('Error counting guests:', countErr);
+            socket.emit('passcodeValidationResult', { success: false, error: 'Database error' });
+          } else {
+            const currentGuestCount = countResults.length > 0 ? countResults[0].guest_count : 0;
   
-          // Inserting the guest into the guest_sessions table
-          console.log(`Attempting to insert guest: ${fullName}, passcode: ${passcode}, session: ${matchedSessionId}`);
-          db.query('INSERT INTO guest_sessions (guest_name, passcode, session_id) VALUES (?, ?, ?)', 
-                   [fullName, passcode, matchedSessionId], (insertErr, insertResults) => {
-            if (insertErr) {
-              console.error('Error inserting guest into guest_sessions:', insertErr);
+            if (currentGuestCount >= 2) { // Replace 2 with your max guest limit
+              console.log(`Session ${matchedSessionId} is full`);
+              socket.emit('sessionFull', 'Session is full');
             } else {
-              console.log(`Guest ${fullName} added to guest_sessions for session ${matchedSessionId}`);
-              socket.emit('passcodeValidationResult', { success: true, sessionId: matchedSessionId });
-              socket.join(matchedSessionId);
+              // Insert the guest into the guest_sessions table
+              db.query('INSERT INTO guest_sessions (guest_name, passcode, session_id) VALUES (?, ?, ?)',
+                [fullName, passcode, matchedSessionId], (insertErr, insertResults) => {
+                  if (insertErr) {
+                    console.error('Error inserting guest into guest_sessions:', insertErr);
+                    socket.emit('passcodeValidationResult', { success: false, error: 'Database error' });
+                  } else {
+                    console.log(`Guest ${fullName} added to guest_sessions for session ${matchedSessionId}`);
+  
+                    // Update the guest count in session_info table
+                    const updateGuestCountQuery = 'INSERT INTO session_info (session_id, guest_count) VALUES (?, 1) ON DUPLICATE KEY UPDATE guest_count = guest_count + 1';
+                    db.query(updateGuestCountQuery, [matchedSessionId], (updateErr, updateResults) => {
+                      if (updateErr) {
+                        console.error('Error updating guest count in session_info:', updateErr);
+                        // You might want to rollback the guest_sessions insert if this fails
+                      } else {
+                        console.log(`Guest count updated for session ${matchedSessionId}`);
+                        socket.emit('passcodeValidationResult', { success: true, sessionId: matchedSessionId });
+                        socket.join(matchedSessionId);
+                      }
+                    });
+                  }
+                });
             }
-          });
-        }
+          }
+        });
       } else {
         console.log('Passcode validation failed');
         socket.emit('passcodeValidationResult', { success: false, error: 'Invalid passcode' });
       }
     });
   });
+  
   
 
 
