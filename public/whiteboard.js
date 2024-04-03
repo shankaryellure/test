@@ -14,34 +14,43 @@ const socket = io();
 
 
   const endSessionBtn = document.getElementById('endSession');
-
-  if (endSessionBtn) {
-    const sessionId = localStorage.getItem('sessionID');
+  const sessionId = localStorage.getItem('sessionID'); // Used by the host
+  const guestName = localStorage.getItem('fullName'); // Used by the guest
+  const guestSessionId = localStorage.getItem('guestSessionId'); // Session ID for guests
   
-    if (sessionId) {
-      // User is the host
-      endSessionBtn.addEventListener('click', () => {
-        console.log("Host ending session", sessionId);
-        socket.emit('endSession', { sessionId });
-        console.log("Host: client is after emit");
-      });
-    } else {
-      // User is a participant
-      endSessionBtn.textContent = 'Leave Session'; // Change button text to indicate action
-      endSessionBtn.addEventListener('click', () => {
-        console.log("Participant leaving session");
-        window.location.href = '/index'; // Redirect participant
-      });
-    }
+  if (endSessionBtn) {
+      if (sessionId) { // Host logic
+          endSessionBtn.addEventListener('click', () => {
+              console.log("Host ending session", sessionId);
+              socket.emit('endSession', { sessionId });
+          });
+      } else if (guestName && guestSessionId) { // Guest logic
+          endSessionBtn.textContent = 'Leave Session';
+          endSessionBtn.addEventListener('click', () => {
+              console.log("Guest leaving session", guestName);
+              socket.emit('leaveSession', { guestName, sessionId: guestSessionId });
+          });
+      }
   }
   
-  socket.on('sessionEnded', () => {
-    console.log("Hello In sessionEnded");
-    localStorage.removeItem('sessionID');
-    window.location.href = '/login'; 
-  });
+// When a session ends, clear sessionStorage and redirect
+socket.on('sessionEnded', () => {
+  localStorage.removeItem('sessionID');
+  localStorage.removeItem('fullName');
+  localStorage.removeItem('guestSessionId');
+  window.location.href = '/login';
+});
+
+// When a guest leaves the session, handle redirection
+socket.on('guestLeft', (data) => {
+  if (data.guestName === guestName) {
+      console.log("You have left the session");
+      localStorage.removeItem('guestSessionId'); // Remove guestSessionId when the guest leaves
+      window.location.href = '/index';
+  }
+});
   
-  
+
   
 
 socket.on('sessionPasscode', (passcode) => {
@@ -70,6 +79,8 @@ if (joinSessionButton) {
 
 socket.on('passcodeValidationResult', (result) => {
     if (result.success) {
+        localStorage.setItem('fullName', fullNameInput.value); // Store the fullName in localStorage
+        localStorage.setItem('guestSessionId', result.sessionId); // Store the sessionId for the guest
         window.location.href = '/whiteboard?sessionId=' + result.sessionId;
     } else {
         alert('Failed to join session: ' + result.error);

@@ -315,7 +315,7 @@ io.on('connection', (socket)=> {
           } else {
             const currentGuestCount = countResults.length > 0 ? countResults[0].guest_count : 0;
   
-            if (currentGuestCount >= 2) { // Replace 2 with your max guest limit
+            if (currentGuestCount >= 3) { // Replace 2 with your max guest limit
               console.log(`Session ${matchedSessionId} is full`);
               socket.emit('sessionFull', 'Session is full');
             } else {
@@ -351,62 +351,80 @@ io.on('connection', (socket)=> {
       }
     });
   });
-  
-  
 
-
-  socket.on('endSession', (data) => {
+  
+ socket.on('endSession', (data) => {
     const sessionId = data.sessionId;
-    const cookieString = socket.handshake.headers.cookie;
-    const cookies = cookie.parse(cookieString || '');
-    const userSessionId = cookies['userSessionId']; // Retrieve sessionToken from cookies
-  
+
     // First, validate the session exists in session_passcodes and fetch the host_id
     const validateSessionQuery = 'SELECT host_id FROM session_passcodes WHERE session_id = ?';
     db.query(validateSessionQuery, [sessionId], (validateErr, sessionResults) => {
-      if (validateErr || sessionResults.length === 0) {
-        console.error('Session validation failed or session does not exist.');
-        return;
-      }
-  
-      // Fetch the host_id associated with the userSessionId from active_sessions
-      const getUserHostIdQuery = 'SELECT host_id FROM active_sessions WHERE session_id = ?';
-      db.query(getUserHostIdQuery, [userSessionId], (hostErr, userResults) => {
-        if (hostErr || userResults.length === 0) {
-          console.error('Error fetching user session or no session found.');
-          return;
+        if (validateErr || sessionResults.length === 0) {
+            console.error('Session validation failed or session does not exist.');
+            return;
         }
-  
-        // Compare host_id from both tables to ensure the user ending the session is the host
-        if (sessionResults[0].host_id !== userResults[0].host_id) {
-          console.log('User is not the host of the session.');
-          return;
-        }
-  
+
         // Delete guest_sessions entries associated with the session
         const deleteGuestSessionsQuery = 'DELETE FROM guest_sessions WHERE session_id = ?';
-        db.query(deleteGuestSessionsQuery, [sessionId], (deleteGuestErr, deleteGuestResult) => {
-          if (deleteGuestErr) {
-            console.error('Error deleting guest session entries:', deleteGuestErr);
-            return;
-          }
-          console.log(`Guest session entries deleted for session ID: ${sessionId}`);
-  
-          // Proceed to delete the session from session_passcodes
-          const deleteSessionQuery = 'DELETE FROM session_passcodes WHERE session_id = ?';
-          db.query(deleteSessionQuery, [sessionId], (deleteErr, deleteResult) => {
-            if (deleteErr) {
-              console.error('Error deleting session:', deleteErr);
-              return;
+        db.query(deleteGuestSessionsQuery, [sessionId], (deleteGuestErr) => {
+            if (deleteGuestErr) {
+                console.error('Error deleting guest session entries:', deleteGuestErr);
+                return;
             }
-            console.log(`Session ended and deleted for session ID: ${sessionId}`);
-            socket.emit('sessionEnded');
-            console.log("after sessionEnded");
-          });
+            console.log(`Guest session entries deleted for session ID: ${sessionId}`);
+
+            // Delete the session from session_passcodes
+            const deleteSessionQuery = 'DELETE FROM session_passcodes WHERE session_id = ?';
+            db.query(deleteSessionQuery, [sessionId], (deleteErr) => {
+                if (deleteErr) {
+                    console.error('Error deleting session:', deleteErr);
+                    return;
+                }
+                console.log(`Session ended and deleted for session ID: ${sessionId}`);
+
+                // Delete the session from session_info
+                const deleteSessionInfoQuery = 'DELETE FROM session_info WHERE session_id = ?';
+                db.query(deleteSessionInfoQuery, [sessionId], (deleteInfoErr) => {
+                    if (deleteInfoErr) {
+                        console.error('Error deleting session from session_info:', deleteInfoErr);
+                        return;
+                    }
+                    console.log(`Session info deleted for session ID: ${sessionId}`);
+                    socket.emit('sessionEnded');
+                    console.log("Host ended the session, message sent to all clients.");
+                });
+            });
         });
-      });
     });
+});
+
+
+
+socket.on('leaveSession', ({ guestName, sessionId }) => {
+  console.log(`fullname ${guestName} and sessionId ${sessionId} in leaveSession for guest`);
+
+  // Delete the guest from the guest_sessions table
+  const deleteGuestQuery = 'DELETE FROM guest_sessions WHERE guest_name = ? AND session_id = ?';
+  db.query(deleteGuestQuery, [guestName, sessionId], (deleteErr, deleteResult) => {
+      if (deleteErr) {
+          console.error('Error deleting guest from guest_sessions:', deleteErr);
+          return;
+      }
+
+      // Decrement the guest count in the session_info table
+      const decrementGuestCountQuery = 'UPDATE session_info SET guest_count = GREATEST(guest_count - 1, 0) WHERE session_id = ?';
+      db.query(decrementGuestCountQuery, [sessionId], (decrementErr, decrementResult) => {
+          if (decrementErr) {
+              console.error('Error decrementing guest count in session_info:', decrementErr);
+              return;
+          }
+
+          // Notify the specific guest that they have left the session
+          socket.emit('guestLeft', { guestName, sessionId });
+          console.log(`Guest ${guestName} has left the session ${sessionId}`);
+      });
   });
+});
   
 });
 
